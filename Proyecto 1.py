@@ -1,5 +1,9 @@
+import sys
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGridLayout, QFrame)
+from PyQt6.QtCore import Qt
 import json
 import os
+import requests
 
 class Creador:
     def __init__(self, nombre_completo, imagen):
@@ -105,3 +109,128 @@ class Paginador:
             pagina = datos_completos[i: i + tamano_pagina]
             lista_circular.agregar_pagina(pagina)
         return lista_circular
+
+class ClienteComicVineAPI:
+    def __init__(self, api_key):
+        self.base_url = "https://comicvine.gamespot.com/api"
+        self.api_key = api_key
+        self.headers = {"User-Agent": "MundoComicApp_ProyectoUniversitario/1.0"}
+
+    def obtener_comics(self, limite=50):
+        url = f"{self.base_url}/issues/"
+        parametros = {"api_key": self.api_key, "format": "json", "limit": limite, "sort": "cover_date:desc"}
+        print("Conectando con Comic Vine API para obtener cómics...")
+        respuesta = requests.get(url, headers=self.headers, params=parametros)
+        if respuesta.status_code == 200:
+            return respuesta.json().get("results", [])
+        else:
+            print(f"Error al conectar: {respuesta.status_code}")
+            return []
+
+#Inicio de la interfaz gráfica
+class VentanaCatalogo(QMainWindow):
+    def __init__(self, lista_paginada):
+        super().__init__()
+        self.lista_paginada = lista_paginada
+        self.pagina_actual = self.lista_paginada.cabeza
+        self.inicializar_gui()
+
+    def inicializar_gui(self):
+        self.setWindowTitle("Mundo Comic - Catálogo Virtual")
+        self.setMinimumSize(800, 600)
+        widget_central = QWidget()
+        self.setCentralWidget(widget_central)
+        layout_principal = QVBoxLayout(widget_central)
+
+        #Título
+        titulo = QLabel("Listado de Cómics de Marvel")
+        titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        titulo.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+        layout_principal.addWidget(titulo)
+
+        #Área de Cómics
+        self.grid_comics = QGridLayout()
+        layout_principal.addLayout(self.grid_comics)
+
+        #Botones de Navegación
+        layout_botones = QHBoxLayout()
+        self.btn_atras = QPushButton("<< Anterior")
+        self.btn_siguiente = QPushButton("Siguiente >>")
+        self.btn_atras.clicked.connect(self.ir_atras)
+        self.btn_siguiente.clicked.connect(self.ir_siguiente)
+        layout_botones.addWidget(self.btn_atras)
+        layout_botones.addStretch()
+        layout_botones.addWidget(self.btn_siguiente)
+        layout_principal.addLayout(layout_botones)
+        self.actualizar_vista()
+
+    def actualizar_vista(self):
+        for i in reversed(range(self.grid_comics.count())):
+            widget = self.grid_comics.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+        if not self.pagina_actual:
+            self.grid_comics.addWidget(QLabel("No hay cómics disponibles."))
+            return
+        comics = self.pagina_actual.datos
+        fila, columna = 0, 0
+        for comic in comics:
+            tarjeta = QFrame()
+            tarjeta.setStyleSheet("background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px;")
+            layout_tarjeta = QVBoxLayout(tarjeta)
+
+            # Mostrar datos del cómic
+            lbl_titulo = QLabel(f"<b>{comic.titulo}</b>")  # Nombre del comic
+            lbl_fecha = QLabel(f"Lanzamiento: {comic.fecha_lanzamiento}")  # Fecha de lanzamiento
+            btn_detalle = QPushButton("Ver Detalle")  # Botón de detalle
+            layout_tarjeta.addWidget(lbl_titulo)
+            layout_tarjeta.addWidget(lbl_fecha)
+            layout_tarjeta.addWidget(btn_detalle)
+            self.grid_comics.addWidget(tarjeta, fila, columna)
+            columna += 1
+            if columna > 1:
+                columna = 0
+                fila += 1
+
+    def ir_siguiente(self):
+        if self.pagina_actual:
+            self.pagina_actual = self.lista_paginada.recorrer_adelante(self.pagina_actual)
+            self.actualizar_vista()
+
+    def ir_atras(self):
+        if self.pagina_actual:
+            self.pagina_actual = self.lista_paginada.recorrer_atras(self.pagina_actual)
+            self.actualizar_vista()
+
+
+if __name__ == "__main__":
+    API_KEY = "aca41dd517e3946fa374082173c07f73050d497b"
+    ARCHIVO_LOCAL = "comics_oficiales.json"
+    if not os.path.exists(ARCHIVO_LOCAL):
+        print("Es la primera vez que se ejecuta. ¡Descargando datos reales!")
+        cliente_api = ClienteComicVineAPI(API_KEY)
+        datos_crudos = cliente_api.obtener_comics(limite=50)
+        lista_objetos_comics = []
+        for item in datos_crudos:
+            titulo = item.get("name")
+            if not titulo:
+                volumen = item.get("volume", {}).get("name", "Desconocido")
+                numero = item.get("issue_number", "0")
+                titulo = f"{volumen} #{numero}"
+            fecha = item.get("cover_date", "Sin fecha")
+            descripcion = item.get("description", "Sin descripción")
+            imagen = item.get("image", {}).get("original_url", "")
+            nuevo_comic = Comic(titulo, "N/A", fecha, imagen, descripcion)
+            lista_objetos_comics.append(nuevo_comic)
+        lista_diccionarios = [comic.mostrar_info() for comic in lista_objetos_comics]
+        GestorArchivos.guardar_en_json(ARCHIVO_LOCAL, lista_diccionarios)
+    datos_json = GestorArchivos.leer_de_json(ARCHIVO_LOCAL)
+    comics_reales = []
+    for dato in datos_json:
+        nuevo_comic = Comic(titulo=dato["titulo"], isbn=dato["isbn"], fecha_lanzamiento=dato["fecha_lanzamiento"], imagen_referencia=dato["imagen_referencia"], descripcion=dato["descripcion"])
+        comics_reales.append(nuevo_comic)
+    catalogo_paginado = Paginador.construir_lista_paginada(comics_reales, 10)
+    app = QApplication(sys.argv)
+    ventana = VentanaCatalogo(catalogo_paginado)
+    ventana.show()
+    sys.exit(app.exec())
