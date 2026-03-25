@@ -356,21 +356,30 @@ class VentanaCatalogo(QMainWindow):
         self._construir_ui()
 
 if __name__ == "__main__":
+    CLAVE_API = "aca41dd517e3946fa374082173c07f73050d497b"
+    ARCHIVO_JSON = "comics_oficiales.json"
 
-    ARCHIVO = "comics.json"
+    PALABRAS_MARVEL = [
+        "spider", "x-men", "avengers", "iron man", "thor",
+        "captain", "hulk", "daredevil", "fantastic",
+        "silver surfer", "marvel", "ultimate"
+    ]
 
-    if not os.path.exists(ARCHIVO):
-        comics = [
-            Comic("Spider-Man", "1", "2020", ""),
-            Comic("Iron Man", "2", "2019", ""),
-            Comic("Thor", "3", "2021", ""),
-            Comic("Hulk", "4", "2018", "")
-        ]
+    def _json_necesita_regeneracion(ruta):
+        if not os.path.exists(ruta):
+            return True
+        try:
+            datos = GestorArchivos.leer_de_json(ruta)
+            if not datos:
+                return True
 
-        datos = [c.mostrar_info() for c in comics]
-        GestorArchivos.guardar_en_json(ARCHIVO, datos)
-
-    datos = GestorArchivos.leer_de_json(ARCHIVO)
+            vacios = any(
+                len(d.get("personajes", [])) == 0 or len(d.get("creadores", [])) == 0
+                for d in datos
+            )
+            return vacios
+        except Exception:
+            return True
 
     comics = []
     for d in datos:
