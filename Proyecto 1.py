@@ -342,6 +342,78 @@ class Paginador:
             lista_circular.agregar_pagina(datos_completos[i:i + tamano_pagina])
         return lista_circular
 
+
+class ClienteComicVineAPI:
+    IDS_MARVEL_CLASICOS = [
+        # The Amazing Spider-Man
+        "4000-6496", "4000-6497", "4000-6498", "4000-6499", "4000-6500",
+        "4000-6501", "4000-6502", "4000-6503", "4000-6504", "4000-6505",
+        # Uncanny X-Men
+        "4000-6906", "4000-6907", "4000-6908", "4000-6909", "4000-6910",
+        # Iron Man
+        "4000-7171", "4000-7172", "4000-7173", "4000-7174", "4000-7175",
+        # Thor
+        "4000-8158", "4000-8159", "4000-8160", "4000-8161", "4000-8162",
+        # Captain America
+        "4000-6085", "4000-6086", "4000-6087", "4000-6088", "4000-6089",
+        # Avengers
+        "4000-6023", "4000-6024", "4000-6025", "4000-6026", "4000-6027",
+        # Hulk
+        "4000-7480", "4000-7481", "4000-7482", "4000-7483", "4000-7484",
+        # Daredevil
+        "4000-6644", "4000-6645", "4000-6646", "4000-6647", "4000-6648",
+        # Fantastic Four
+        "4000-6831", "4000-6832", "4000-6833", "4000-6834", "4000-6835",
+        # Silver Surfer
+        "4000-9092", "4000-9093", "4000-9094", "4000-9095", "4000-9096",
+    ]
+
+    def __init__(self, clave_api):
+        self.clave_api    = clave_api
+        self.encabezados  = {"User-Agent": "MundoComicApp/1.0"}
+        self.sesion       = requests.Session()
+        self.sesion.headers.update(self.encabezados)
+
+    def _obtener_issue(self, id_completo):
+        url = f"https://comicvine.gamespot.com/api/issue/{id_completo}/"
+        parametros = {
+            "api_key":  self.clave_api,
+            "format":   "json",
+        }
+        try:
+            respuesta = self.sesion.get(url, params=parametros, timeout=15)
+            if respuesta.status_code == 200:
+                datos = respuesta.json()
+                if datos.get("status_code") == 1:
+                    return datos.get("results")
+        except Exception as error:
+            print(f"  Error obteniendo {id_completo}: {error}")
+        return None
+
+    def obtener_comics(self):
+        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        print("Descargando cómics Marvel clásicos con datos completos...")
+        resultados = []
+
+        def _descargar(id_completo):
+            issue = self._obtener_issue(id_completo)
+            time.sleep(0.25)
+            return issue
+
+        with ThreadPoolExecutor(max_workers=4) as ejecutor:
+            futuros = {ejecutor.submit(_descargar, id_c): id_c
+                       for id_c in self.IDS_MARVEL_CLASICOS}
+            for i, futuro in enumerate(as_completed(futuros), 1):
+                issue = futuro.result()
+                if issue:
+                    resultados.append(issue)
+                print(f"  {i}/{len(self.IDS_MARVEL_CLASICOS)} descargados...", end="\r")
+
+        print(f"\n{len(resultados)} cómics obtenidos.")
+        return resultados
+
 class VentanaCatalogo(QMainWindow):
     def __init__(self, comics_totales):
         super().__init__()
