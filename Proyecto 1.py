@@ -1,13 +1,11 @@
 import sys
+import os
+import json
 import requests
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy)
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QLinearGradient, QBrush
 
-
-# =========================
-# 🎨 PALETA Y ESTILOS
-# =========================
 PALETA = {
     "fondo": "#0d0d0d",
     "superficie": "#141414",
@@ -22,26 +20,16 @@ PALETA = {
     "texto_bajo": "#555555"
 }
 
-
 ESTILO_PRINCIPAL = f"""
 QWidget {{
     color: {PALETA['texto_alto']};
     font-family: 'Segoe UI';
 }}
-
 QMainWindow {{
     background: {PALETA['fondo']};
 }}
-
-QPushButton {{
-    border-radius: 6px;
-}}
 """
 
-
-# =========================
-# 🔴 DIVISOR DECORATIVO
-# =========================
 class DivisorRojo(QWidget):
     def __init__(self, altura=1, parent=None):
         super().__init__(parent)
@@ -58,21 +46,77 @@ class DivisorRojo(QWidget):
 
         painter.fillRect(self.rect(), QBrush(gradient))
 
-
-# =========================
-# 🧾 MODELO BÁSICO DE COMIC
-# =========================
 class Comic:
-    def __init__(self, titulo, fecha, imagen):
+    def __init__(self, titulo, isbn, fecha_lanzamiento, imagen_referencia, descripcion=""):
         self.titulo = titulo
-        self.fecha = fecha
-        self.imagen = imagen
+        self.isbn = isbn
+        self.fecha_lanzamiento = fecha_lanzamiento
+        self.imagen_referencia = imagen_referencia
+        self.descripcion = descripcion
         self.personajes = []
+        self.creadores = []
+
+    def mostrar_info(self):
+        return {
+            "titulo": self.titulo,
+            "isbn": self.isbn,
+            "fecha_lanzamiento": self.fecha_lanzamiento,
+            "imagen_referencia": self.imagen_referencia,
+            "descripcion": self.descripcion,
+            "personajes": self.personajes,
+            "creadores": self.creadores,
+        }
+
+class NodoPagina:
+    def __init__(self, datos):
+        self.datos = datos
+        self.siguiente = None
+        self.anterior = None
 
 
-# =========================
-# 🧩 TARJETA VISUAL DE COMIC
-# =========================
+class ListaCircularDoblementeEnlazada:
+    def __init__(self):
+        self.cabeza = None
+        self.cola = None
+
+    def agregar_pagina(self, datos):
+        nuevo = NodoPagina(datos)
+
+        if not self.cabeza:
+            self.cabeza = nuevo
+            self.cola = nuevo
+            self.cabeza.siguiente = self.cabeza
+            self.cabeza.anterior = self.cabeza
+        else:
+            nuevo.anterior = self.cola
+            nuevo.siguiente = self.cabeza
+            self.cola.siguiente = nuevo
+            self.cabeza.anterior = nuevo
+            self.cola = nuevo
+
+class GestorArchivos:
+
+    @staticmethod
+    def guardar_en_json(ruta, lista):
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(lista, f, indent=4, ensure_ascii=False)
+
+    @staticmethod
+    def leer_de_json(ruta):
+        if not os.path.exists(ruta):
+            return []
+        with open(ruta, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+class Paginador:
+
+    @staticmethod
+    def construir_lista_paginada(lista, tamano=5):
+        estructura = ListaCircularDoblementeEnlazada()
+        for i in range(0, len(lista), tamano):
+            estructura.agregar_pagina(lista[i:i+tamano])
+        return estructura
+
 class TarjetaComic(QFrame):
 
     clic = pyqtSignal(object)
@@ -80,131 +124,102 @@ class TarjetaComic(QFrame):
     def __init__(self, comic):
         super().__init__()
         self.comic = comic
-
         self.setFixedSize(380, 200)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self._construir_ui()
-        self._estilo_normal()
+        self._ui()
+        self._estilo()
 
-    def _construir_ui(self):
+    def _ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
 
-        # Imagen
-        self.lbl_imagen = QLabel("⏳")
-        self.lbl_imagen.setFixedSize(100, 150)
-        self.lbl_imagen.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_imagen.setStyleSheet(f"""
-            background: {PALETA['superficie']};
-            border-radius: 6px;
-        """)
+        self.lbl_img = QLabel("⏳")
+        self.lbl_img.setFixedSize(100, 150)
 
-        # Info
         info = QVBoxLayout()
 
         self.lbl_titulo = QLabel(self.comic.titulo)
-        self.lbl_titulo.setWordWrap(True)
-        self.lbl_titulo.setStyleSheet("font-weight: bold;")
+        self.lbl_fecha = QLabel(self.comic.fecha_lanzamiento)
 
-        self.lbl_fecha = QLabel(self.comic.fecha)
-        self.lbl_fecha.setStyleSheet(f"color: {PALETA['texto_medio']};")
-
-        self.btn = QPushButton("Ver detalle")
-        self.btn.clicked.connect(self._emitir)
+        btn = QPushButton("Ver detalle")
+        btn.clicked.connect(lambda: self.clic.emit(self.comic))
 
         info.addWidget(self.lbl_titulo)
         info.addWidget(self.lbl_fecha)
         info.addStretch()
-        info.addWidget(self.btn)
+        info.addWidget(btn)
 
-        layout.addWidget(self.lbl_imagen)
+        layout.addWidget(self.lbl_img)
         layout.addLayout(info)
 
-    def _emitir(self):
-        self.clic.emit(self.comic)
-
-    def _estilo_normal(self):
+    def _estilo(self):
         self.setStyleSheet(f"""
-            QFrame {{
-                background: {PALETA['tarjeta']};
-                border: 1px solid {PALETA['borde']};
-                border-radius: 8px;
-            }}
+        QFrame {{
+            background: {PALETA['tarjeta']};
+            border: 1px solid {PALETA['borde']};
+        }}
         """)
 
-    def _estilo_hover(self):
-        self.setStyleSheet(f"""
-            QFrame {{
-                background: {PALETA['tarjeta_hover']};
-                border: 1px solid {PALETA['acento']};
-                border-radius: 8px;
-            }}
-        """)
-
-    def enterEvent(self, event):
-        self._estilo_hover()
-
-    def leaveEvent(self, event):
-        self._estilo_normal()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._emitir()
-
-
-# =========================
-# 🪟 VENTANA BASE (PRIMERA VERSION)
-# =========================
 class Ventana(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, comics):
         super().__init__()
+        self.comics = comics
 
-        self.setWindowTitle("Catálogo de Comics")
+        self.setWindowTitle("Catálogo")
         self.resize(900, 600)
-
         self.setStyleSheet(ESTILO_PRINCIPAL)
 
-        self._construir_ui()
+        self._ui()
 
-    def _construir_ui(self):
-        contenedor = QWidget()
-        self.setCentralWidget(contenedor)
+    def _ui(self):
+        cont = QWidget()
+        self.setCentralWidget(cont)
 
-        layout = QVBoxLayout(contenedor)
-
-        titulo = QLabel("Catálogo")
-        titulo.setStyleSheet("font-size: 24px; font-weight: bold;")
+        layout = QVBoxLayout(cont)
 
         self.grid = QGridLayout()
 
-        layout.addWidget(titulo)
+        layout.addWidget(QLabel("Catálogo de Comics"))
         layout.addWidget(DivisorRojo())
         layout.addLayout(self.grid)
 
-        self._cargar_ejemplo()
+        self._cargar()
 
-    def _cargar_ejemplo(self):
-        ejemplos = [
-            Comic("Spider-Man #1", "2020", ""),
-            Comic("Iron Man #5", "2019", ""),
-            Comic("Thor #3", "2021", ""),
-            Comic("Hulk #10", "2018", "")
+    def _cargar(self):
+        for i, c in enumerate(self.comics):
+            t = TarjetaComic(c)
+            self.grid.addWidget(t, i // 2, i % 2)
+
+
+if __name__ == "__main__":
+
+    ARCHIVO = "comics.json"
+
+    if not os.path.exists(ARCHIVO):
+        comics = [
+            Comic("Spider-Man", "1", "2020", ""),
+            Comic("Iron Man", "2", "2019", ""),
+            Comic("Thor", "3", "2021", ""),
+            Comic("Hulk", "4", "2018", "")
         ]
 
-        for i, comic in enumerate(ejemplos):
-            tarjeta = TarjetaComic(comic)
-            self.grid.addWidget(tarjeta, i // 2, i % 2)
+        datos = [c.mostrar_info() for c in comics]
+        GestorArchivos.guardar_en_json(ARCHIVO, datos)
 
+    datos = GestorArchivos.leer_de_json(ARCHIVO)
 
-# =========================
-# 🚀 MAIN
-# =========================
-if __name__ == "__main__":
+    comics = []
+    for d in datos:
+        c = Comic(
+            d["titulo"],
+            d["isbn"],
+            d["fecha_lanzamiento"],
+            d["imagen_referencia"]
+        )
+        comics.append(c)
+
     app = QApplication(sys.argv)
-
-    ventana = Ventana()
-    ventana.show()
-
+    v = Ventana(comics)
+    v.show()
     sys.exit(app.exec())
