@@ -1,5 +1,4 @@
 import sys
-import threading
 import os
 import json
 import time
@@ -32,6 +31,21 @@ class Personaje:
 
     def mostrar_info(self):
         return {"nombre": self.nombre, "imagen_referencia": self.imagen_referencia, "descripcion": self.descripcion, "creadores": self.creadores, "comics": self.comics, "eventos": self.eventos}
+
+class Creador:
+    def __init__(self, nombre, imagen_referencia=""):
+        self.nombre = nombre
+        self.imagen_referencia = imagen_referencia
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+class Evento:
+    def __init__(self, nombre):
+        self.nombre = nombre
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
 
 class NodoPersonaje:
     def __init__(self, personaje):
@@ -656,23 +670,15 @@ class VentanaPersonajes(QWidget):
         lbl_img.setStyleSheet(f"background: {PALETA['superficie']}; border-radius: 60px; color: {PALETA['texto_bajo']}; font-size: 30px;")
         lbl_img.setText("👤")
         if personaje.imagen_referencia:
-            def _cargar(url, lbl_ref):
+            self.hilo_modal_pers = CargadorImagen(personaje.imagen_referencia, id(lbl_img), self.sesion, 120, 120)
+            def _aplicar_img_pers(ident, px):
                 try:
-                    r = self.sesion.get(url, timeout=6)
-                    if r.status_code == 200:
-                        img = QImage()
-                        img.loadFromData(r.content)
-                        px = QPixmap.fromImage(img).scaled(
-                            120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                        try:
-                            lbl_ref.setPixmap(px)
-                            lbl_ref.setStyleSheet("border-radius: 60px; background: transparent;")
-                        except RuntimeError:
-                            pass
-                except Exception:
+                    lbl_img.setPixmap(px)
+                    lbl_img.setStyleSheet("border-radius: 60px; background: transparent;")
+                except RuntimeError:
                     pass
-
-            threading.Thread(target=_cargar, args=(personaje.imagen_referencia, lbl_img), daemon=True).start()
+            self.hilo_modal_pers.carga_completa.connect(_aplicar_img_pers)
+            self.hilo_modal_pers.start()
         col_desc = QVBoxLayout()
         col_desc.setSpacing(8)
         lbl_etiq_nombre = QLabel("PERSONAJE")
@@ -1155,22 +1161,15 @@ class VentanaCatalogo(QMainWindow):
         col_imagen.addWidget(lbl_fecha_det)
         col_imagen.addStretch()
         if comic.imagen_referencia:
-            def _cargar_img_detalle(url, lbl):
+            self.hilo_modal_comic = CargadorImagen(comic.imagen_referencia, id(lbl_imagen_det), self.sesion, 160, 240)
+            def _aplicar_img_comic(ident, px):
                 try:
-                    resp = self.sesion.get(url, timeout=6)
-                    if resp.status_code == 200:
-                        imagen = QImage()
-                        imagen.loadFromData(resp.content)
-                        pixmap = QPixmap.fromImage(imagen).scaled(160, 240, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                        try:
-                            lbl.setPixmap(pixmap)
-                            lbl.setStyleSheet("border-radius: 8px; background: transparent;")
-                        except RuntimeError:
-                            pass
-                except Exception:
+                    lbl_imagen_det.setPixmap(px)
+                    lbl_imagen_det.setStyleSheet("border-radius: 8px; background: transparent;")
+                except RuntimeError:
                     pass
-            hilo_det = threading.Thread(target=_cargar_img_detalle, args=(comic.imagen_referencia, lbl_imagen_det), daemon=True)
-            hilo_det.start()
+            self.hilo_modal_comic.carga_completa.connect(_aplicar_img_comic)
+            self.hilo_modal_comic.start()
         col_texto = QVBoxLayout()
         col_texto.setSpacing(14)
 
@@ -1262,7 +1261,12 @@ if __name__ == "__main__":
     for dato in datos_guardados:
         comic_obj = Comic(dato["titulo"], dato["isbn"], dato["fecha_lanzamiento"], dato["imagen_referencia"], dato.get("descripcion", ""))
         comic_obj.personajes = dato.get("personajes", [])
-        comic_obj.creadores = dato.get("creadores", [])
+        lista_obj_creadores = []
+        for c in dato.get("creadores", []):
+            nuevo_creador = Creador(nombre=c.get("nombre", "Desconocido"))
+            lista_obj_creadores.append(nuevo_creador)
+        comic_obj.creadores = lista_obj_creadores
+        comic_obj.eventos = [Evento("Secret Wars"), Evento("Civil War")]
         comics_cargados.append(comic_obj)
     lista_sl_personajes = ListaSimplementeLigadaPersonajes()
     mapa_personajes = {}
