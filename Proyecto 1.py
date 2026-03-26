@@ -112,7 +112,7 @@ class ClienteComicVineAPI:
         self.sesion = requests.Session()
         self.sesion.headers.update(self.encabezados)
 
-    def _obtener_urls_de_volumen(self, id_volumen, limite=10):
+    def obtener_urls_de_volumen(self, id_volumen, limite=10):
         url = "https://comicvine.gamespot.com/api/issues/"
         parametros = {"api_key": self.clave_api, "format": "json", "filter": f"volume:{id_volumen}", "limit": limite,
                       "sort": "issue_number:asc"}
@@ -130,7 +130,7 @@ class ClienteComicVineAPI:
             time.sleep(1)
         return []
 
-    def _obtener_detalle_issue(self, url_issue):
+    def obtener_detalle_issue(self, url_issue):
         parametros = {"api_key": self.clave_api, "format": "json"}
 
         for intento in range(3):
@@ -152,7 +152,7 @@ class ClienteComicVineAPI:
         urls_issues = []
 
         for id_vol in self.VOLUMENES_MARVEL:
-            urls = self._obtener_urls_de_volumen(id_vol, limite=10)
+            urls = self.obtener_urls_de_volumen(id_vol, limite=10)
             urls_issues.extend(urls)
             time.sleep(1)
 
@@ -161,7 +161,7 @@ class ClienteComicVineAPI:
         print("Descargando personajes y creadores de forma segura...")
         resultados = []
         for i, url in enumerate(urls_issues, 1):
-            detalle = self._obtener_detalle_issue(url)
+            detalle = self.obtener_detalle_issue(url)
             if detalle:
                 resultados.append(detalle)
             print(f"  {i}/{total_encontrados} descargados...", end="\r")
@@ -211,38 +211,38 @@ class TarjetaComic(QFrame):
         self.comic = comic
         self.setFixedSize(420, 210)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._construir_ui()
-        self._aplicar_sombra()
-        self._estilo_normal()
+        self.construir_ui()
+        self.aplicar_sombra()
+        self.estilo_normal()
 
-    def _aplicar_sombra(self):
+    def aplicar_sombra(self):
         sombra = QGraphicsDropShadowEffect(self)
         sombra.setBlurRadius(20)
         sombra.setOffset(0, 4)
         sombra.setColor(QColor(0, 0, 0, 120))
         self.setGraphicsEffect(sombra)
 
-    def _estilo_normal(self):
+    def estilo_normal(self):
         self.setStyleSheet(f"""
             QFrame {{background: {PALETA['tarjeta']};border: 1px solid {PALETA['borde']};border-radius: 10px;}}""")
 
-    def _estilo_hover(self):
+    def estilo_hover(self):
         self.setStyleSheet(f"""
             QFrame {{background: {PALETA['tarjeta_hover']};border: 1px solid {PALETA['acento']};border-radius: 10px;}}""")
 
     def enterEvent(self, evento):
-        self._estilo_hover()
+        self.estilo_hover()
         super().enterEvent(evento)
 
     def leaveEvent(self, evento):
-        self._estilo_normal()
+        self.estilo_normal()
         super().leaveEvent(evento)
 
     def mousePressEvent(self, evento):
         if evento.button() == Qt.MouseButton.LeftButton:
             self.senal_detalle.emit(self.comic)
 
-    def _construir_ui(self):
+    def construir_ui(self):
         contenedor = QHBoxLayout(self)
         contenedor.setContentsMargins(14, 14, 18, 14)
         contenedor.setSpacing(16)
@@ -332,53 +332,49 @@ class TarjetaPersonaje(QFrame):
         self.personaje = personaje
         self.setFixedSize(420, 100)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._construir_ui()
-        self._aplicar_sombra()
-        self._estilo_normal()
+        self.construir_ui()
+        self.aplicar_sombra()
+        self.estilo_normal()
 
-    def _aplicar_sombra(self):
+    def aplicar_sombra(self):
         sombra = QGraphicsDropShadowEffect(self)
         sombra.setBlurRadius(16)
         sombra.setOffset(0, 3)
         sombra.setColor(QColor(0, 0, 0, 100))
         self.setGraphicsEffect(sombra)
 
-    def _estilo_normal(self):
+    def estilo_normal(self):
         self.setStyleSheet(f"""
             QFrame {{background: {PALETA['tarjeta']};border: 1px solid {PALETA['borde']};border-radius: 10px;}}""")
 
-    def _estilo_hover(self):
-        self.setStyleSheet(f"""
-            QFrame {{background: {PALETA['tarjeta_hover']}; border: 1px solid {PALETA['acento']}; border-radius: 10px;}}""")
+    def estilo_hover(self):
+        self.setStyleSheet(f"""QFrame {{background: {PALETA['tarjeta_hover']}; border: 1px solid {PALETA['acento']}; border-radius: 10px;}}""")
 
     def enterEvent(self, e):
-        self._estilo_hover()
+        self.estilo_hover()
         super().enterEvent(e)
 
     def leaveEvent(self, e):
-        self._estilo_normal()
+        self.estilo_normal()
         super().leaveEvent(e)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self.senal_detalle.emit(self.personaje)
 
-    def _construir_ui(self):
+    def construir_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 10, 16, 10)
         layout.setSpacing(14)
-
         self.lbl_imagen = QLabel()
         self.lbl_imagen.setFixedSize(60, 60)
         self.lbl_imagen.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_imagen.setStyleSheet(
-            f"""background: {PALETA['superficie']}; border-radius: 30px; color: {PALETA['texto_bajo']}; font-size: 18px;""")
+        self.lbl_imagen.setStyleSheet(f"""background: {PALETA['superficie']}; border-radius: 30px; color: {PALETA['texto_bajo']}; font-size: 18px;""")
         self.lbl_imagen.setText("👤")
         col = QVBoxLayout()
         col.setSpacing(4)
         lbl_categoria = QLabel("MARVEL — PERSONAJE")
-        lbl_categoria.setStyleSheet(
-            f"color: {PALETA['acento']}; font-size: 9px; font-weight: bold; letter-spacing: 2px;")
+        lbl_categoria.setStyleSheet(f"color: {PALETA['acento']}; font-size: 9px; font-weight: bold; letter-spacing: 2px;")
         nombre_recortado = self.personaje.nombre[:55] + ("…" if len(self.personaje.nombre) > 55 else "")
         lbl_nombre = QLabel(nombre_recortado)
         lbl_nombre.setStyleSheet(f"color: {PALETA['texto_alto']}; font-size: 14px; font-weight: bold;")
@@ -399,7 +395,6 @@ class TarjetaPersonaje(QFrame):
         layout.addLayout(col)
         layout.addStretch()
         layout.addWidget(btn)
-
 
 class VentanaPersonajes(QWidget):
     def __init__(self, personajes_totales, sesion, cache_imagenes, parent=None):
